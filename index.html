@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Outsiders: Ponyboy's Journey</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            background-color: #111;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 450px;
+            background: linear-gradient(to bottom, #1a0d00, #331a00);
+            border: 4px solid #d4af37;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+            overflow: hidden;
+        }
+
+        #canvas {
+            display: block;
+            background-color: transparent;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 15px;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px #000;
+        }
+
+        #story-box {
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #d4af37;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.4;
+            max-width: 90%;
+            margin: 0 auto 10px auto;
+            pointer-events: auto;
+            text-transform: uppercase;
+        }
+
+        #screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #d4af37;
+            font-size: 36px;
+            margin-bottom: 15px;
+            text-shadow: 3px 3px 0px #000;
+        }
+
+        p.instructions {
+            font-size: 16px;
+            color: #bbb;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+
+        button {
+            background: #d4af37;
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+            pointer-events: auto;
+        }
+
+        button:hover {
+            background: #fff;
+        }
+
+        .hidden {
+            display: none !out;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+       
+        #controls-hint {
+            margin-top: 15px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="canvas" width="800" height="450"></canvas>
+       
+        <div id="ui-layer">
+            <div class="hud">
+                <div id="hud-chapter">CHAPTER: 1/5</div>
+                <div id="hud-lives">LIVES: ❤️❤️❤️</div>
+            </div>
+           
+            <div id="story-box">
+                Loading game...
+            </div>
+        </div>
+
+        <div id="screen-overlay">
+            <h1 id="overlay-title">THE OUTSIDERS</h1>
+            <p id="overlay-text" class="instructions">
+                Play as Ponyboy Curtis. Navigate through the major events of the novel.<br>
+                Avoid danger and keep your friends safe. Remember to stay gold.<br><br>
+                <strong>CONTROLS:</strong> Use LEFT / RIGHT Arrow keys (or A / D) to move.
+            </p>
+            <button id="overlay-btn" onclick="handleOverlayClick()">START GAME</button>
+        </div>
+    </div>
+
+    <div id="controls-hint">Press LEFT/RIGHT or A/D to walk. Advance off the right side to clear a level.</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+   
+    // UI Elements
+    const screenOverlay = document.getElementById('screen-overlay');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlayText = document.getElementById('overlay-text');
+    const overlayBtn = document.getElementById('overlay-btn');
+    const storyBox = document.getElementById('story-box');
+    const hudChapter = document.getElementById('hud-chapter');
+    const hudLives = document.getElementById('hud-lives');
+
+    // Game State
+    let gameState = 'START'; // START, PLAYING, LEVEL_CLEAR, GAMEOVER, WIN
+    let currentLevel = 0;
+    let lives = 3;
+    let keys = {};
+
+    // Player Object
+    const player = {
+        x: 50,
+        y: 330,
+        width: 25,
+        height: 60,
+        speed: 4,
+        color: '#3a86ff', // Greaser Blue Jeans
+        hairColor: '#4a3728', // Long greased hair
+        jacketColor: '#444' // Denim/Leather jacket
+    };
+
+    // Level configuration capturing only the key events
+    const levels = [
+        {
+            title: "Chapter 1: The Night in the Park",
+            story: "Socs ambush you and Johnny in the park. Bob tries to drown you in the fountain. Johnny acts in self-defense to save your life. Dodge the attacking Socs!",
+            bgGradient: ['#0d1b2a', '#1b263b'],
+            groundColor: '#415a77',
+            obstacleType: 'soc',
+            obstacleSpeed: 2.5,
+            spawnRate: 0.015,
+            obstacles: []
+        },
+        {
+            title: "Chapter 2: The Church Hideout",
+            story: "Dally helps you hitch a train to Windrixville. You and Johnny hide out inside an abandoned church on Jay Mountain. Watch out for crumbling architecture!",
+            bgGradient: ['#283618', '#606c38'],
+            groundColor: '#dda15e',
+            obstacleType: 'debris',
+            obstacleSpeed: 3,
+            spawnRate: 0.02,
+            obstacles: []
+        },
+        {
+            title: "Chapter 3: The Church Fire",
+            story: "The church catches fire with kids trapped inside! You and Johnny sprint straight into the burning building to rescue them. Dodge the falling blazing embers!",
+            bgGradient: ['#370000', '#800000'],
+            groundColor: '#4a0000',
+            obstacleType: 'fire',
+            obstacleSpeed: 4,
+            spawnRate: 0.03,
+            obstacles: []
+        },
+        {
+            title: "Chapter 4: The Rumble",
+            story: "It's the ultimate showdown between the Greasers and the Socs down in the vacant lot. Fight through the rival Soc members to win it for Johnny!",
+            bgGradient: ['#111', '#222'],
+            groundColor: '#333',
+            obstacleType: 'soc_fighter',
+            obstacleSpeed: 3.5,
+            spawnRate: 0.025,
+            obstacles: []
+        },
+        {
+            title: "Chapter 5: Stay Gold",
+            story: "Johnny passes away in the hospital, leaving you his copy of Gone with the Wind. He leaves you one final message: 'Stay Gold, Ponyboy.' Run home to safety.",
+            bgGradient: ['#3a0ca3', '#7209b7'],
+            groundColor: '#f72585',
+            obstacleType: 'memory',
+            obstacleSpeed: 1,
+            spawnRate: 0.008,
+            obstacles: []
+        }
+    ];
+
+    // Event Listeners
+    window.addEventListener('keydown', e => keys[e.key] = true);
+    window.addEventListener('keyup', e => keys[e.key] = false);
+
+    function initLevel(index) {
+        currentLevel = index;
+        player.x = 50;
+        levels[currentLevel].obstacles = [];
+        storyBox.innerHTML = levels[currentLevel].story;
+        hudChapter.innerText = `CHAPTER: ${currentLevel + 1}/${levels.length}`;
+        updateLivesUI();
+    }
+
+    function updateLivesUI() {
+        hudLives.innerText = "LIVES: " + "❤️".repeat(Math.max(0, lives));
+    }
+
+    function handleOverlayClick() {
+        if (gameState === 'START' || gameState === 'GAMEOVER' || gameState === 'WIN') {
+            lives = 3;
+            initLevel(0);
+            gameState = 'PLAYING';
+            screenOverlay.style.display = 'none';
+        } else if (gameState === 'LEVEL_CLEAR') {
+            initLevel(currentLevel + 1);
+            gameState = 'PLAYING';
+            screenOverlay.style.display = 'none';
+        }
+    }
+
+    function showOverlay(title, text, btnText) {
+        screenOverlay.style.display = 'flex';
+        overlayTitle.innerText = title;
+        overlayText.innerHTML = text;
+        overlayBtn.innerText = btnText;
+    }
+
+    // Main Game Loop
+    function loop() {
+        update();
+        render();
+        requestAnimationFrame(loop);
+    }
+
+    function update() {
+        if (gameState !== 'PLAYING') return;
+
+        // Player Movement
+        if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
+            player.x -= player.speed;
+        }
+        if (keys['ArrowRight'] || keys['d'] || keys['D']) {
+            player.x += player.speed;
+        }
+
+        // Screen Boundaries
+        if (player.x < 0) player.x = 0;
+       
+        // Level Progression Condition
+        if (player.x > canvas.width - player.width) {
+            if (currentLevel < levels.length - 1) {
+                gameState = 'LEVEL_CLEAR';
+                showOverlay(
+                    "CHAPTER CLEARED",
+                    `You made it through ${levels[currentLevel].title.split(':')[0]}!`,
+                    "NEXT CHAPTER"
+                );
+            } else {
+                gameState = 'WIN';
+                showOverlay(
+                    "STAY GOLD",
+                    "You survived the story of The Outsiders.<br>Ponyboy decides to write his theme paper, starting with: <em>'When I stepped out into the bright sunlight from the darkness of the movie house...'</em>",
+                    "PLAY AGAIN"
+                );
+            }
+            return;
+        }
+
+        // Obstacle Logic
+        let lvl = levels[currentLevel];
+       
+        // Spawn Obstacles
+        if (Math.random() < lvl.spawnRate) {
+            let obsX = canvas.width + 50;
+            let obsY = 340; // Ground level default
+            let width = 20;
+            let height = 50;
+
+            if (lvl.obstacleType === 'debris' || lvl.obstacleType === 'fire') {
+                obsX = Math.random() * (canvas.width - 200) + 150;
+                obsY = -50;
+                width = 25;
+                height = 25;
+            }
+
+            lvl.obstacles.push({
+                x: obsX,
+                y: obsY,
+                width: width,
+                height: height,
+                type: lvl.obstacleType
+            });
+        }
+
+        // Move and Check Obstacles
+        for (let i = lvl.obstacles.length - 1; i >= 0; i--) {
+            let obs = lvl.obstacles[i];
+
+            // Horizontal vs Vertical movement patterns
+            if (obs.type === 'debris' || obs.type === 'fire') {
+                obs.y += lvl.obstacleSpeed;
+            } else {
+                obs.x -= lvl.obstacleSpeed;
+            }
+
+            // AABB Collision Detection
+            if (player.x < obs.x + obs.width &&
+                player.x + player.width > obs.x &&
+                player.y < obs.y + obs.height &&
+                player.y + player.height > obs.y) {
+               
+                // Strike collision registered
+                lives--;
+                updateLivesUI();
+                lvl.obstacles.splice(i, 1); // remove item
+
+                if (lives <= 0) {
+                    gameState = 'GAMEOVER';
+                    showOverlay(
+                        "GAME OVER",
+                        "Things are rough all over. Ponyboy couldn't make it through the cycle of violence.",
+                        "TRY AGAIN"
+                    );
+                }
+                continue;
+            }
+
+            // Cleanup off-screen entities
+            if (obs.x < -100 || obs.y > canvas.height + 50) {
+                lvl.obstacles.splice(i, 1);
+            }
+        }
+    }
+
+    function render() {
+        // Clear screen with current chapter background gradients
+        let lvl = levels[currentLevel] || levels[0];
+        let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradient.addColorStop(0, lvl.bgGradient[0]);
+        gradient.addColorStop(1, lvl.bgGradient[1]);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Environment Floor
+        ctx.fillStyle = lvl.groundColor;
+        ctx.fillRect(0, 390, canvas.width, 60);
+
+        // Draw Ambient Atmosphere Detail (Silhouette Backgrounds)
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        if (currentLevel === 0) { // Park Fountain
+            ctx.fillRect(350, 320, 100, 70);
+        } else if (currentLevel === 1 || currentLevel === 2) { // Church/Cross
+            ctx.beginPath();
+            ctx.fillRect(400, 220, 20, 170);
+            ctx.fillRect(370, 260, 80, 20);
+        } else if (currentLevel === 3) { // Rumble Chain-link Fence
+            ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+            ctx.lineWidth = 2;
+            for(let x=0; x<canvas.width; x+=30) {
+                ctx.beginPath(); ctx.moveTo(x, 280); ctx.lineTo(x+30, 390); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(x+30, 280); ctx.lineTo(x, 390); ctx.stroke();
+            }
+        }
+
+        // Draw Obstacles
+        lvl.obstacles.forEach(obs => {
+            if (obs.type === 'soc' || obs.type === 'soc_fighter') {
+                // Luxury blue-blood styling
+                ctx.fillStyle = '#b7094c'; // Crimson Madras colors
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                // Hair
+                ctx.fillStyle = '#d4af37';
+                ctx.fillRect(obs.x + 2, obs.y - 10, obs.width - 4, 10);
+            } else if (obs.type === 'fire') {
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.arc(obs.x + 12, obs.y + 12, 14, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffa8a8';
+                ctx.beginPath();
+                ctx.arc(obs.x + 12, obs.y + 12, 8, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (obs.type === 'debris') {
+                ctx.fillStyle = '#777';
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+            } else if (obs.type === 'memory') {
+                // Gold particles representing Johnny's last words
+                ctx.fillStyle = '#ffd700';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#ffd700';
+                ctx.fillRect(obs.x, obs.y + 20, 15, 15);
+                ctx.shadowBlur = 0; // reset
+            }
+        });
+
+        // Draw Player (Ponyboy)
+        if (gameState === 'PLAYING' || gameState === 'LEVEL_CLEAR') {
+            // Legs / Pants
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y + 30, player.width, 30);
+           
+            // Torso / Jacket
+            ctx.fillStyle = player.jacketColor;
+            ctx.fillRect(player.x, player.y, player.width, 30);
+           
+            // Head
+            ctx.fillStyle = '#ffdbac';
+            ctx.fillRect(player.x + 3, player.y - 15, player.width - 6, 15);
+           
+            // Greaser Hair
+            ctx.fillStyle = player.hairColor;
+            ctx.fillRect(player.x, player.y - 23, player.width, 10);
+        }
+    }
+
+    // Start initialization loop execution
+    initLevel(0);
+    loop();
+</script>
+</body>
+</html>
